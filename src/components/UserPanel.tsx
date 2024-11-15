@@ -4,6 +4,7 @@ import { Document, Page } from "react-pdf";
 import { useEffect, useRef, useState } from 'react';
 import { DocumentCallback } from 'react-pdf/src/shared/types.js';
 import { IFieldDetails, ISignature } from '../helper/interface';
+import { urlToFileName } from '../helper/utils';
 
 interface IProps {
     pdfFile: File;
@@ -67,7 +68,8 @@ const UserPanel = ({ pdfFile }: IProps) => {
     }
 
     const onDocumentLoadSuccess = (pdf: DocumentCallback) => {
-        const storedFields = localStorage.getItem(pdfFile?.name);
+        const pdfFileName = pdfFile instanceof File ? pdfFile?.name : urlToFileName(pdfFile);
+        const storedFields = localStorage.getItem(pdfFileName);
         if (storedFields) {
             setFields(JSON.parse(storedFields));
         }
@@ -102,21 +104,35 @@ const UserPanel = ({ pdfFile }: IProps) => {
         console.log('signatureDetails #', signatureDetails);
         if (!signature) return;
         const signatureArrayBuffer = await signature.arrayBuffer(); //
-        const pdfArrayBuffer = await pdfFile.arrayBuffer();
+        let pdfArrayBuffer;
+        if (typeof pdfFile == 'string') {
+            const pdfResponse = await fetch(pdfFile);
+            pdfArrayBuffer = await pdfResponse.arrayBuffer();
+        } else
+            pdfArrayBuffer = await pdfFile.arrayBuffer();
         const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
         const signatureImage = await pdfDoc.embedPng(signatureArrayBuffer); //
+
+        const baseFontSize = 12; // Base font size
+        const baseSignatureWidth = 100; // Base signature width for scaling
 
         signatureDetails?.map((signature => {
             const page = pdfDoc.getPage(signature?.pageNumber - 1);
             if (!(pdfCanvasRef?.current)) return;
             const viewport = pdfCanvasRef.current.getBoundingClientRect();
             const pdfX = (Number(signature?.positionX) / viewport.width) * page.getWidth();
-            const pdfY = page.getHeight() - (Number(signature?.positionY) / viewport.height) * page.getHeight() - 50;
+            const pdfY = page.getHeight() - (Number(signature?.positionY) / viewport.height) * page.getHeight() - Number(signature?.height);
+            const textSize = (Number(signature?.width) / baseSignatureWidth) * baseFontSize;
             page.drawImage(signatureImage, {
                 x: pdfX,
                 y: pdfY,
                 width: Number(signature?.width),
                 height: Number(signature?.height),
+            });
+            page.drawText('12 July, 2024', {
+                x: pdfX,
+                y: pdfY + textSize,
+                size: textSize
             });
         }))
 

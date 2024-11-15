@@ -1,11 +1,11 @@
 import { MouseEvent, useEffect, useRef, useState } from "react";
-import Draggable from "react-draggable";
+import Draggable, { DraggableEvent } from "react-draggable";
 import { Document, Page } from "react-pdf";
 import { DocumentCallback } from "react-pdf/src/shared/types.js";
-import { IFieldDetails } from "../helper/interface";
-import { generateUid } from "../helper/utils";
-import '../pdf-worker.config';
 import { useNavigate } from "react-router-dom";
+import { IFieldDetails } from "../helper/interface";
+import { generateUid, urlToFileName } from "../helper/utils";
+import '../pdf-worker.config';
 
 interface IProps {
     handleSendToUser: (pdfFile: File) => void;
@@ -13,7 +13,7 @@ interface IProps {
 
 const AdminPanel = ({ handleSendToUser }: IProps) => {
     const navigate = useNavigate();
-    const [pdfFile, setPdfFile] = useState<File>();
+    const [pdfFile, setPdfFile] = useState<File | string>('https://cdn.filestackcontent.com/wcrjf9qPTCKXV3hMXDwK');
     const [fields, setFields] = useState<IFieldDetails[]>([]);
     const [numPages, setNumPages] = useState<number>(0);
     const [pageNumber, setPageNumber] = useState<number>(0);
@@ -55,10 +55,15 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         }
     }
 
-    const onSignDragStart = (event: any) => {
+    const onSignDragStart = (event: MouseEvent | DraggableEvent) => {
+        const target = event.target as HTMLElement;
+        if (target && target.classList.contains('resize')) {
+            event.stopPropagation();
+            return;
+        }
         const pdfContainer: DOMRect = pdfCanvasRef?.current?.getBoundingClientRect() as DOMRect;
-        const dataX = event.clientX - pdfContainer.left;
-        const dataY = event.clientY - pdfContainer.bottom;
+        const dataX = (event as MouseEvent).clientX - pdfContainer.left;
+        const dataY = (event as MouseEvent).clientY - pdfContainer.bottom;
 
         console.log(`left: ${pdfContainer.left}; top: ${pdfContainer.top}`);
         // Update the signatureBoxPosition to set the element at the mouse pointer's position
@@ -71,6 +76,11 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     }
 
     const onSignDrag = (event: any, data: any) => {
+        const target = event.target as HTMLElement;
+        if (target && target.classList.contains('resize')) {
+            event.stopPropagation();
+            return;
+        }
         if (!pdfCanvasRef?.current) return;
         const viewerRect = pdfCanvasRef.current.getBoundingClientRect();
         const pdfX = event.clientX - viewerRect.left;
@@ -149,8 +159,12 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         }]);
     }
 
+    const handleResize = (event: MouseEvent) => {
+        event.stopPropagation();
+    }
+
     const onSubmit = () => {
-        const pdfFileName = pdfFile?.name;
+        const pdfFileName = pdfFile instanceof File ? pdfFile.name : urlToFileName(pdfFile);
         if (pdfFileName) {
             localStorage.setItem(pdfFileName, JSON.stringify(fields));
         }
@@ -181,7 +195,6 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         })
     }, [pageNumber]);
     return (
-
         <div>
             <h3>Admin Panel</h3>
             <input type="file" onChange={handleFileUpload} />
@@ -230,6 +243,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                     file={pdfFile}
                                     onLoadSuccess={onDocumentLoadSuccess}
                                     onClick={handleClick}
+                                    loading={<span>Loading...</span>}
                                 >
                                     <Page
                                         className={'page-container'}
@@ -257,7 +271,30 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                                         zIndex: 10
                                                     }}
                                                 >
-                                                    Signature Field
+                                                    <div
+                                                        style={{
+                                                            width: signatureBoxSize.boxW + 'px',
+                                                            height: signatureBoxSize.boxH + 'px',
+                                                            position: 'relative',
+                                                        }}
+                                                    >
+                                                        Signature Field
+                                                        <div
+                                                            className="resize"
+                                                            style={{
+                                                                width: '10px',
+                                                                height: '10px',
+                                                                borderRadius: '50%',
+                                                                position: 'absolute',
+                                                                backgroundColor: 'rgba(0, 0, 255, 0.6)',
+                                                                cursor: 'nw-resize',
+                                                                bottom: -5,
+                                                                right: -5,
+                                                                zIndex: 15
+                                                            }}
+                                                            onMouseDown={handleResize}
+                                                        ></div>
+                                                    </div>
                                                 </div>
                                             </Draggable>
                                         )}

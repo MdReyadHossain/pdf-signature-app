@@ -4,7 +4,7 @@ import UserPanel from '../components/UserPanel';
 import { useState } from 'react';
 
 const AppRouter = () => {
-    const [pdfFile, setPdfFile] = useState<File>();
+    const [pdfFile, setPdfFile] = useState<File | string>();
     return (
         <Router>
             <Routes>
