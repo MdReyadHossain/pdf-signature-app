@@ -3,9 +3,10 @@ import Draggable, { DraggableEvent } from "react-draggable";
 import { Document, Page } from "react-pdf";
 import { DocumentCallback } from "react-pdf/src/shared/types.js";
 import { useNavigate } from "react-router-dom";
-import { IFieldDetails } from "../helper/interface";
+import { IFieldButton, IFieldDetails, ISignaturePosition, ISignatureSize } from "../helper/interface";
 import { generateUid, urlToFileName } from "../helper/utils";
 import '../pdf-worker.config';
+import { fieldButtons } from "../helper/docSignature";
 
 interface IProps {
     handleSendToUser: (pdfFile: File) => void;
@@ -17,10 +18,11 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const [fields, setFields] = useState<IFieldDetails[]>([]);
     const [numPages, setNumPages] = useState<number>(0);
     const [pageNumber, setPageNumber] = useState<number>(0);
-    const [signatureBoxPosition, setSignatureBoxPosition] = useState<any>({ x: 0, y: -100, posX: 0, posY: 0 });
-    const [signatureBoxSize, setSignatureBoxSize] = useState<any>({ boxH: 50, boxW: 100 });
+    const [signatureBox, setSignatureBox] = useState<{ fieldName: string, fieldType: string }>({ fieldName: '', fieldType: '' });
+    const [signatureBoxPosition, setSignatureBoxPosition] = useState<ISignaturePosition>({ x: 0, y: -300, posX: 0, posY: 0 });
+    const [signatureBoxSize, setSignatureBoxSize] = useState<ISignatureSize>({ boxH: 50, boxW: 100 });
 
-    const [signField, setSignField] = useState<boolean>(false);
+    const [fieldBox, setFieldBox] = useState<boolean>(false);
     const pdfCanvasRef = useRef<HTMLDivElement>(null);
 
     const drawSignatureField = (id: string, fieldName: string, posX: number, posY: number, height: number, width: number) => {
@@ -56,11 +58,11 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     }
 
     const onSignDragStart = (event: MouseEvent | DraggableEvent) => {
-        const target = event.target as HTMLElement;
-        if (target && target.classList.contains('resize')) {
-            event.stopPropagation();
-            return;
-        }
+        // const target = event.target as HTMLElement;
+        // if (target && target.classList.contains('resize')) {
+        //     event.stopPropagation();
+        //     return;
+        // }
         const pdfContainer: DOMRect = pdfCanvasRef?.current?.getBoundingClientRect() as DOMRect;
         const dataX = (event as MouseEvent).clientX - pdfContainer.left;
         const dataY = (event as MouseEvent).clientY - pdfContainer.bottom;
@@ -76,11 +78,11 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     }
 
     const onSignDrag = (event: any, data: any) => {
-        const target = event.target as HTMLElement;
-        if (target && target.classList.contains('resize')) {
-            event.stopPropagation();
-            return;
-        }
+        // const target = event.target as HTMLElement;
+        // if (target && target.classList.contains('resize')) {
+        //     event.stopPropagation();
+        //     return;
+        // }
         if (!pdfCanvasRef?.current) return;
         const viewerRect = pdfCanvasRef.current.getBoundingClientRect();
         const pdfX = event.clientX - viewerRect.left;
@@ -93,16 +95,52 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         }
         setSignatureBoxPosition(cord);
     }
+    let x: number, y: number;
+    const onResizeStart = (event: MouseEvent) => {
+        event.stopPropagation();
+        if (!pdfCanvasRef?.current) return;
+        // console.log('onResizeStart', `event.clientX: ${event.clientX}, event.clientY: ${event.clientY}`);
 
-    const onSignBoxHeight = (event: any) => {
-        const value = event.target.value;
-        setSignatureBoxSize((prev: any) => ({ ...prev, boxH: value }));
+        const viewerRect = pdfCanvasRef.current.getBoundingClientRect();
+        x = event.clientX - viewerRect.left;
+        y = event.clientY - viewerRect.top;
+        // console.log('onResizeStart', `event.clientX: ${x}, event.clientY: ${y}`);
+
+        document.addEventListener("mousemove", onResize);
+        document.addEventListener("mouseup", onResizeEnd);
+    };
+
+    const onResize = (event: globalThis.MouseEvent) => {
+        // console.log('onResize', `event.clientX: ${event.clientX}, event.clientY: ${event.clientY}`);
+        if (!pdfCanvasRef?.current) return;
+        const viewerRect = pdfCanvasRef.current.getBoundingClientRect();
+        const mx = event.clientX - viewerRect.left;
+        const my = event.clientY - viewerRect.top;
+
+        console.log(`mx: ${mx}, my: ${my}`);
+        console.log('onResizeStart', `event.clientX: ${x}, event.clientY: ${y}`);
+        const cx = mx - x;
+        const cy = my - y;
+        setSignatureBoxSize({
+            boxH: Math.min(200, Math.max(25, cy + signatureBoxSize.boxH)),
+            boxW: Math.min(300, Math.max(60, cx + signatureBoxSize.boxW))
+        });
     }
 
-    const onSignBoxWidth = (event: any) => {
-        const value = event.target.value;
-        setSignatureBoxSize((prev: any) => ({ ...prev, boxW: value }));
-    }
+    const onResizeEnd = () => {
+        document.removeEventListener("mousemove", onResize);
+        document.removeEventListener("mouseup", onResizeEnd);
+    };
+
+    // const onSignBoxHeight = (event: any) => {
+    //     const value = event.target.value;
+    //     setSignatureBoxSize((prev: any) => ({ ...prev, boxH: value }));
+    // }
+
+    // const onSignBoxWidth = (event: any) => {
+    //     const value = event.target.value;
+    //     setSignatureBoxSize((prev: any) => ({ ...prev, boxW: value }));
+    // }
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
@@ -113,6 +151,21 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const onDocumentLoadSuccess = (pdf: DocumentCallback) => {
         setNumPages(pdf?.numPages);
         setPageNumber(1);
+    }
+
+    const handleField = (button: IFieldButton) => {
+        setSignatureBoxPosition({
+            posX: 0,
+            posY: 0,
+            x: button.positionX,
+            y: button.positionY
+        });
+        setSignatureBoxSize({
+            boxH: button.height,
+            boxW: button.width
+        });
+        setSignatureBox({ fieldName: button.fieldName, fieldType: button.fieldType });
+        setFieldBox(true);
     }
 
     const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -142,7 +195,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         const fieldId: string = `field-${generateUid()}`;
         drawSignatureField(
             fieldId,
-            'Signature Field',
+            signatureBox.fieldName,
             signatureBoxPosition.posX,
             signatureBoxPosition.posY,
             signatureBoxSize.boxH,
@@ -150,17 +203,15 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         );
         setFields((prev: IFieldDetails[]) => [...prev, {
             id: fieldId,
-            fieldName: 'Signature Field',
+            fieldName: signatureBox.fieldName,
+            fieldType: signatureBox.fieldType,
             positionX: signatureBoxPosition.posX,
             positionY: signatureBoxPosition.posY,
             width: signatureBoxSize.boxW,
             height: signatureBoxSize.boxH,
             pageNumber: pageNumber
         }]);
-    }
-
-    const handleResize = (event: MouseEvent) => {
-        event.stopPropagation();
+        setFieldBox(false);
     }
 
     const onSubmit = () => {
@@ -204,10 +255,20 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                     pdfFile && (
                         <>
                             <div>
-                                <button onClick={() => setSignField((prev) => !prev)}>
-                                    {signField ? 'Remove' : 'Add'} Signature Field
+                                {fieldBox && (
+                                    <button onClick={() => setFieldBox(false)} >
+                                        Canel Field
+                                    </button>
+                                )}
+                                {!fieldBox && fieldButtons.map((button: IFieldButton, index: number) => (
+                                    <button key={index} onClick={() => handleField(button)} style={{ margin: 10 }}>
+                                        Add {button.fieldName}
+                                    </button>
+                                ))}
+                                <button onClick={onSubmit} style={{ margin: 10 }}>
+                                    Save
                                 </button>
-                                {signField && (
+                                {fieldBox && (
                                     <div
                                         className="signature-action"
                                         style={{
@@ -220,13 +281,10 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                         <button onClick={handleSetSignatureBox}>
                                             Set Signature Field
                                         </button>
-                                        <label htmlFor="">Hight</label>
+                                        {/* <label htmlFor="">Hight</label>
                                         <input type="number" value={signatureBoxSize.boxH} id="" onChange={onSignBoxHeight} />
                                         <label htmlFor="">Width</label>
-                                        <input type="number" value={signatureBoxSize.boxW} id="" onChange={onSignBoxWidth} />
-                                        <button onClick={onSubmit}>
-                                            Save
-                                        </button>
+                                        <input type="number" value={signatureBoxSize.boxW} id="" onChange={onSignBoxWidth} /> */}
                                     </div>
                                 )}
                             </div>
@@ -252,7 +310,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                         renderAnnotationLayer={false}
                                         onClick={handleRemoveSignatureBox}
                                     >
-                                        {signField && (
+                                        {fieldBox && (
                                             <Draggable
                                                 position={signatureBoxPosition}
                                                 onStart={onSignDragStart}
@@ -278,7 +336,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                                             position: 'relative',
                                                         }}
                                                     >
-                                                        Signature Field
+                                                        {signatureBox.fieldName}
                                                         <div
                                                             className="resize"
                                                             style={{
@@ -292,7 +350,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                                                 right: -5,
                                                                 zIndex: 15
                                                             }}
-                                                            onMouseDown={handleResize}
+                                                            onMouseDown={onResizeStart}
                                                         ></div>
                                                     </div>
                                                 </div>
