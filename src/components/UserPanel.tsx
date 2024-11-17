@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, PDFImage } from 'pdf-lib';
 import { useEffect, useRef, useState } from 'react';
 import { Document, Page } from "react-pdf";
 import { DocumentCallback } from 'react-pdf/src/shared/types.js';
@@ -126,7 +126,12 @@ const UserPanel = ({ pdfFile }: IProps) => {
         } else
             pdfArrayBuffer = await pdfFile.arrayBuffer();
         const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
-        const signatureImage = await pdfDoc.embedPng(signatureArrayBuffer); //
+        let signatureImage: PDFImage;
+        if (signature.type === 'image/png') {
+            signatureImage = await pdfDoc.embedPng(signatureArrayBuffer); //
+        } else if (signature.type === 'image/jpeg') {
+            signatureImage = await pdfDoc.embedJpg(signatureArrayBuffer); //
+        }
 
         const baseFontSize = 12; // Base font size
         const baseSignatureWidth = 100; // Base signature width for scaling
