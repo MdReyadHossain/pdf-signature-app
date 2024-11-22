@@ -37,3 +37,13 @@ export interface ISignaturePosition {
     posX: number,
     posY: number,
 }
+
+export interface IFieldData {
+    id?: string,
+    fieldName?: string,
+    posX: number,
+    posY: number,
+    height: number,
+    width: number,
+    viewerElement: HTMLElement
+}

@@ -3,11 +3,10 @@ import Draggable, { DraggableEvent } from "react-draggable";
 import { Document, Page } from "react-pdf";
 import { DocumentCallback } from "react-pdf/src/shared/types.js";
 import { useNavigate } from "react-router-dom";
-import { IFieldButton, IFieldDetails, ISignaturePosition, ISignatureSize } from "../helper/interface";
+import { IFieldButton, IFieldData, IFieldDetails, ISignaturePosition, ISignatureSize } from "../helper/interface";
 import { generateUid, urlToFileName } from "../helper/utils";
 import '../pdf-worker.config';
 import { fieldButtons } from "../helper/docSignature";
-import { FiArrowDownRight } from "react-icons/fi";
 import { FaRegArrowAltCircleRight } from "react-icons/fa";
 import { TiDeleteOutline } from "react-icons/ti";
 
@@ -19,45 +18,42 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const navigate = useNavigate();
     const [pdfFile, setPdfFile] = useState<File | string>('https://cdn.filestackcontent.com/wcrjf9qPTCKXV3hMXDwK');
     const [numPages, setNumPages] = useState<number>(0);
-    const [pageNumber, setPageNumber] = useState<number>(0);
-    const [pdfSize, setPdfSize] = useState<{ h: number, w: number }>({ h: 0, w: 0 });
 
     const [fields, setFields] = useState<IFieldDetails[]>([]);
 
     const [signatureBox, setSignatureBox] = useState<{ fieldName: string, fieldType: string }>({ fieldName: '', fieldType: '' });
     const [signatureBoxPosition, setSignatureBoxPosition] = useState<ISignaturePosition>({ x: 0, y: -300, posX: 0, posY: 0 });
     const [signatureBoxSize, setSignatureBoxSize] = useState<ISignatureSize>({ boxH: 50, boxW: 100 });
+    const [indx, setIndx] = useState<number>(-1);
 
     const [dragStatus, setDragStatus] = useState<'start' | 'drop' | 'done'>('done');
     const [fieldBox, setFieldBox] = useState<boolean>(false);
     const pdfCanvasRef = useRef<HTMLDivElement>(null);
 
-    const drawSignatureField = (id: string, fieldName: string, posX: number, posY: number, height: number, width: number) => {
-        const viewerElement = pdfCanvasRef?.current?.querySelector('.page-container') as HTMLElement;
-        viewerElement.style.position = 'relative';
-        if (viewerElement) {
-            console.log('signatureBoxPosition #', posX, posY);
-
+    const drawField = (field: IFieldData) => {
+        field.viewerElement.style.position = 'relative';
+        if (field?.viewerElement) {
             const sealedSignatureDiv = document.createElement('div');
-            sealedSignatureDiv.id = id;
+            sealedSignatureDiv.id = field?.id ?? '';
             sealedSignatureDiv.style.position = 'absolute';
-            sealedSignatureDiv.style.left = `${posX}px`;
-            sealedSignatureDiv.style.top = `${posY}px`;
-            sealedSignatureDiv.style.width = width + 'px';
-            sealedSignatureDiv.style.height = height + 'px';
+            sealedSignatureDiv.style.left = `${field?.posX}px`;
+            sealedSignatureDiv.style.top = `${field?.posY}px`;
+            sealedSignatureDiv.style.width = field?.width + 'px';
+            sealedSignatureDiv.style.height = field?.height + 'px';
             sealedSignatureDiv.style.backgroundColor = 'rgba(51, 204, 51, 0.2)';
             sealedSignatureDiv.style.border = '2px dashed green';
+            sealedSignatureDiv.style.cursor = 'grab';
             sealedSignatureDiv.style.color = 'black';
             sealedSignatureDiv.style.display = 'flex';
             sealedSignatureDiv.style.justifyContent = 'center';
             sealedSignatureDiv.style.alignItems = 'center';
-            sealedSignatureDiv.textContent = fieldName;
+            sealedSignatureDiv.textContent = field?.fieldName ?? 'Field';
 
-            viewerElement.appendChild(sealedSignatureDiv);
+            field?.viewerElement.appendChild(sealedSignatureDiv);
         }
     }
 
-    const removeSignatureField = (id: string) => {
+    const removeField = (id: string) => {
         const element = document.getElementById(id);
         if (element) {
             element.remove();
@@ -67,62 +63,42 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const onDragStart = (event: MouseEvent | DraggableEvent) => {
         setFieldBox(true);
         setDragStatus('start');
-        console.log('start');
-        // const target = event.target as HTMLElement;
-        // if (target && target.classList.contains('resize')) {
-        //     event.stopPropagation();
-        //     return;
-        // }
         const pdfContainer: DOMRect = pdfCanvasRef?.current?.getBoundingClientRect() as DOMRect;
         const dataX = (event as MouseEvent).clientX - pdfContainer.left;
         const dataY = (event as MouseEvent).clientY - pdfContainer.bottom;
 
-        // setFields((prev: IFieldDetails[]) => prev.map(field => field.id === fieldId ? {
-        //     ...field,
-        //     positionX: dataX,
-        //     positionY: dataY
-        // } : field));
-        // Update the signatureBoxPosition to set the element at the mouse pointer's position
         setSignatureBoxPosition({
-            posX: dataX,
-            posY: dataY,
+            posX: (event as MouseEvent).clientX,
+            posY: (event as MouseEvent).clientY,
             x: dataX,
             y: dataY
         });
     }
 
-    const onDrag = (event: any) => {
-        const pdfContainer: DOMRect = pdfCanvasRef?.current?.getBoundingClientRect() as DOMRect;
-        const dataX = (event as MouseEvent).clientX - pdfContainer.left;
-        const dataY = (event as MouseEvent).clientY - pdfContainer.bottom;
+    const onDrag = (event: globalThis.MouseEvent) => {
+        const target = event.target as HTMLElement;
+        const pageContainers = document.querySelectorAll('.page-container');
 
-        // Update the signatureBoxPosition to set the element at the mouse pointer's position
-        // setFields((prev: IFieldDetails[]) => prev.map(field => field.id === fieldId ? {
-        //     ...field,
-        //     positionX: dataX,
-        //     positionY: dataY
-        // } : field));
-        // setSignatureBoxPosition({
-        //     posX: dataX,
-        //     posY: dataY,
-        //     x: dataX,
-        //     y: dataY
-        // });
-        if (!pdfCanvasRef?.current) return;
-        const viewerRect = pdfCanvasRef.current.getBoundingClientRect();
-        const pdfX = event.clientX - viewerRect.left;
-        const pdfY = event.clientY - viewerRect.top;
+        const closestContainer = target.closest('.page-container') as HTMLElement;
+
+        if (closestContainer) {
+            pageContainers.forEach((container, idx) => {
+                if (container === closestContainer) {
+                    setIndx(idx);
+                }
+            });
+        }
+        const pdfContainer: DOMRect = pdfCanvasRef?.current?.getBoundingClientRect() as DOMRect;
+        const dataX = event.clientX - pdfContainer.left;
+        const dataY = event.clientY - pdfContainer.bottom;
         const cord = {
             x: dataX,
             y: dataY,
-            posX: pdfX,
-            posY: pdfY
+            posX: event.clientX,
+            posY: event.clientY
         }
-        console.log(cord);
+        console.log('setSignatureBoxPosition #', cord);
         setSignatureBoxPosition(cord);
-        console.log('signatureBox #', signatureBox);
-        console.log('signatureBoxPosition #', signatureBoxPosition);
-        console.log('signatureBoxSize #', signatureBoxSize);
     }
 
     const onDragEnd = () => {
@@ -170,16 +146,6 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         document.removeEventListener("mouseup", onResizeEnd);
     };
 
-    // const onSignBoxHeight = (event: any) => {
-    //     const value = event.target.value;
-    //     setSignatureBoxSize((prev: any) => ({ ...prev, boxH: value }));
-    // }
-
-    // const onSignBoxWidth = (event: any) => {
-    //     const value = event.target.value;
-    //     setSignatureBoxSize((prev: any) => ({ ...prev, boxW: value }));
-    // }
-
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (!files || files.length === 0) return;
@@ -188,16 +154,9 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
 
     const onDocumentLoadSuccess = (pdf: DocumentCallback) => {
         setNumPages(pdf?.numPages);
-        setPageNumber(1);
     }
 
     const handleField = (button: IFieldButton) => {
-        // setSignatureBoxPosition({
-        //     posX: 0,
-        //     posY: 0,
-        //     x: button.positionX,
-        //     y: button.positionY
-        // });
         setSignatureBoxSize({
             boxH: button.height,
             boxW: button.width
@@ -209,26 +168,11 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         document.addEventListener('mouseup', onDragEnd);
     }
 
-    const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-        console.log('====handleClick=====');
-        // const pageContainer = document.querySelector('.page-container');
-        if (pdfCanvasRef?.current) {
-            const viewerRect = pdfCanvasRef.current.getBoundingClientRect();
-
-            const pdfX = event.clientX - viewerRect.left;
-            const pdfY = event.clientY - viewerRect.top;
-            console.log(`x: ${Math.floor(pdfX)}, y: ${Math.floor(pdfY)}`);
-            console.log('page-number: ', pageNumber);
-        }
-        console.log('signatureBoxPosition #', signatureBoxPosition);
-        console.log('fields #', fields);
-    }
-
     const handleMoveFieldBox = (event: MouseEvent) => {
         const divId = (event.target as HTMLElement)?.id;
         const field = fields.find((field) => field.id === divId);
         if (fields.some(field => field.id == divId)) {
-            removeSignatureField(divId);
+            removeField(divId);
             setFields(fields.filter(field => field.id !== divId));
             handleField({
                 fieldName: field?.fieldName ?? '',
@@ -241,29 +185,6 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         }
     }
 
-    const handleSetFieldBox = () => {
-        const fieldId: string = `field-${generateUid()}`;
-        drawSignatureField(
-            fieldId,
-            signatureBox.fieldName,
-            signatureBoxPosition.posX,
-            signatureBoxPosition.posY,
-            signatureBoxSize.boxH,
-            signatureBoxSize.boxW
-        );
-        setFields((prev: IFieldDetails[]) => [...prev, {
-            id: fieldId,
-            fieldName: signatureBox.fieldName,
-            fieldType: signatureBox.fieldType,
-            positionX: signatureBoxPosition.posX,
-            positionY: signatureBoxPosition.posY,
-            width: signatureBoxSize.boxW,
-            height: signatureBoxSize.boxH,
-            pageNumber: pageNumber
-        }]);
-        setFieldBox(false);
-    }
-
     const onSubmit = () => {
         const pdfFileName = pdfFile instanceof File ? pdfFile.name : urlToFileName(pdfFile);
         if (pdfFileName) {
@@ -273,31 +194,32 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         navigate('/user');
     }
 
-    console.log('pdfSize #', pdfSize);
-
-    const isSignatureBoxValid = () => {
-        return !(signatureBoxPosition.posX < 0 || signatureBoxPosition.posX + signatureBoxSize.boxW > pdfSize.w
-            || signatureBoxPosition.posY < 0 || signatureBoxPosition.posY + signatureBoxSize.boxH > pdfSize.h
-            || signatureBoxSize.boxH <= 0 || signatureBoxSize.boxW <= 0
-            || !pdfCanvasRef?.current
-            || !pdfCanvasRef.current.getBoundingClientRect());
+    const isSignatureBoxValid = (posX: number, posY: number, pageWidth: number, pageHeight: number) => {
+        return !(posX < 0 || posX + signatureBoxSize.boxW > pageWidth
+            || posY < 0 || posY + signatureBoxSize.boxH > pageHeight
+            || signatureBoxSize.boxH <= 0 || signatureBoxSize.boxW <= 0);
     }
 
     useEffect(() => {
         if (dragStatus == 'drop') {
-            console.log('signatureBox #', signatureBox);
-            console.log('signatureBoxPosition #', signatureBoxPosition);
-            console.log('signatureBoxSize #', signatureBoxSize);
-            if (isSignatureBoxValid()) {
+            const viewerElement = pdfCanvasRef?.current?.querySelectorAll('.page-container')[indx] as HTMLElement;
+            const viewRect = viewerElement.getBoundingClientRect();
+            const posX = signatureBoxPosition.posX - viewRect?.left;
+            const posY = signatureBoxPosition.posY - viewRect?.top;
+            const pageHeight = viewRect?.height;
+            const pageWidth = viewRect?.width;
+            
+            if (isSignatureBoxValid(posX, posY, pageWidth, pageHeight)) {
                 const fieldId: string = `field-${generateUid()}`;
-                drawSignatureField(
-                    fieldId,
-                    signatureBox.fieldName,
-                    signatureBoxPosition.posX,
-                    signatureBoxPosition.posY,
-                    signatureBoxSize.boxH,
-                    signatureBoxSize.boxW
-                );
+                drawField({
+                    id: fieldId,
+                    fieldName: signatureBox.fieldName,
+                    posX: signatureBoxPosition.posX - viewRect?.left,
+                    posY: signatureBoxPosition.posY - viewRect?.top,
+                    height: signatureBoxSize.boxH,
+                    width: signatureBoxSize.boxW,
+                    viewerElement: viewerElement
+                });
                 setFields((prev: IFieldDetails[]) => [...prev, {
                     id: fieldId,
                     fieldName: signatureBox.fieldName,
@@ -306,49 +228,47 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                     positionY: signatureBoxPosition.posY,
                     width: signatureBoxSize.boxW,
                     height: signatureBoxSize.boxH,
-                    pageNumber: pageNumber
+                    pageNumber: indx
                 }]);
             }
             setDragStatus('done');
             setFieldBox(false);
         }
     }, [dragStatus])
-
-    useEffect(() => {
-        setTimeout(() => {
-            const pdfCanvas = document?.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
-            console.log('pdfCanvas #', pdfCanvas);
-            setPdfSize({
-                h: parseInt(pdfCanvas?.style?.height, 10),
-                w: parseInt(pdfCanvas?.style?.width, 10)
-            });
-        }, 500);
-        console.log('change page', pageNumber);
-        const removeFileds = fields.filter(field => field.pageNumber != pageNumber);
-        const addFileds = fields.filter(field => field.pageNumber == pageNumber);
-
-        console.log('removeFileds #', removeFileds);
-        console.log('addFileds #', addFileds);
-
-        removeFileds.map(fields => {
-            removeSignatureField(fields?.id);
-        })
-        addFileds.map(fields => {
-            drawSignatureField(
-                fields?.id,
-                fields?.fieldName,
-                fields?.positionX,
-                fields?.positionY,
-                fields?.height,
-                fields?.width
-            );
-        })
-    }, [pageNumber]);
     return (
         <div>
+            <div className="div">
+                <div className="child-div-1">
+                    <div className="child-1"></div>
+                </div>
+                <div className="child-div-2">
+                    <div className="child-2"></div>
+                </div>
+                <div className="child-div-3">
+                    <div className="child-3"></div>
+                </div>
+            </div>
+
+
             <h3>Admin Panel</h3>
             <input type="file" onChange={handleFileUpload} />
-
+            <div style={{ position: 'fixed', zIndex: 50 }}>
+                <Draggable
+                    handle=".handle"
+                    defaultPosition={{ x: 0, y: 0 }}
+                >
+                    <div style={{ display: 'inline-block', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0px 0px 10px #aaaaaa' }}>
+                        <div className="handle" style={{ color: 'black', cursor: '' }}>Drag</div>
+                        {fieldButtons.map((button: IFieldButton, index: number) => (
+                            <div key={index}>
+                                <button key={index} onMouseDown={() => handleField(button)} style={{ margin: 10 }}>
+                                    Add {button.fieldName}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </Draggable>
+            </div>
             <div className="document">
                 {
                     pdfFile && (
@@ -359,11 +279,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                         Canel Field
                                     </button>
                                 )} */}
-                                {fieldButtons.map((button: IFieldButton, index: number) => (
-                                    <button key={index} onMouseDown={() => handleField(button)} style={{ margin: 10 }}>
-                                        Add {button.fieldName}
-                                    </button>
-                                ))}
+
                                 <button onClick={onSubmit} style={{ margin: 10 }}>
                                     Save
                                 </button>
@@ -380,90 +296,91 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                 <Document
                                     file={pdfFile}
                                     onLoadSuccess={onDocumentLoadSuccess}
-                                    onClick={handleClick}
+                                    // onClick={handleClick}
                                     loading={<span>Loading...</span>}
                                 >
-                                    <Page
-                                        className={'page-container'}
-                                        pageNumber={pageNumber}
-                                        renderTextLayer={false}
-                                        renderAnnotationLayer={false}
-                                        onMouseDown={handleMoveFieldBox}
-                                    >
-                                        {fieldBox && (
-                                            <Draggable
-                                                position={signatureBoxPosition}
-                                                onStart={onDragStart}
-                                                onDrag={onDrag}
-                                            // bounds='parent'
+                                    {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => {
+                                        return (<>
+                                            <Page
+                                                key={page}
+                                                scale={1}
+                                                width={1000}
+                                                className={'page-container page-number-' + page}
+                                                pageNumber={page}
+                                                renderTextLayer={false}
+                                                renderAnnotationLayer={false}
+                                                onMouseDown={handleMoveFieldBox}
+                                            >
+                                            </Page>
+                                            <div style={{ height: 10 }}></div>
+                                        </>
+                                        );
+                                    })}
+                                    {fieldBox && (
+                                        <Draggable
+                                            position={signatureBoxPosition}
+                                            onStart={onDragStart}
+                                            onDrag={onDrag as any}
+                                        // bounds='parent'
+                                        >
+                                            <div
+                                                style={{
+                                                    width: signatureBoxSize?.boxW + 'px',
+                                                    height: signatureBoxSize?.boxH + 'px',
+                                                    backgroundColor: 'rgba(0, 0, 255, 0.2)',
+                                                    border: '2px dashed blue',
+                                                    cursor: 'default',
+                                                    position: 'absolute',
+                                                    color: 'black',
+                                                    transition: 'linear 0.5s ease-out',
+                                                    zIndex: 10
+                                                }}
                                             >
                                                 <div
                                                     style={{
                                                         width: signatureBoxSize?.boxW + 'px',
                                                         height: signatureBoxSize?.boxH + 'px',
-                                                        backgroundColor: 'rgba(0, 0, 255, 0.2)',
-                                                        border: '2px dashed blue',
-                                                        cursor: 'default',
-                                                        position: 'absolute',
-                                                        color: 'black',
-                                                        zIndex: 10
+                                                        position: 'relative',
                                                     }}
                                                 >
+                                                    {signatureBox?.fieldName}
                                                     <div
+                                                        className="resize"
                                                         style={{
-                                                            width: signatureBoxSize?.boxW + 'px',
-                                                            height: signatureBoxSize?.boxH + 'px',
-                                                            position: 'relative',
+                                                            width: '20px',
+                                                            height: '20px',
+                                                            borderRadius: '50%',
+                                                            position: 'absolute',
+                                                            backgroundColor: 'rgba(255, 0, 0)',
+                                                            color: 'white',
+                                                            cursor: 'default',
+                                                            top: -5,
+                                                            right: -10,
+                                                            zIndex: 15
                                                         }}
-                                                    >
-                                                        {signatureBox?.fieldName}
-                                                        <div
-                                                            className="resize"
-                                                            style={{
-                                                                width: '20px',
-                                                                height: '20px',
-                                                                borderRadius: '50%',
-                                                                position: 'absolute',
-                                                                backgroundColor: 'rgba(255, 0, 0)',
-                                                                color: 'white',
-                                                                cursor: 'default',
-                                                                top: -5,
-                                                                right: -10,
-                                                                zIndex: 15
-                                                            }}
-                                                            onMouseDown={onResizeStart}
-                                                        ><TiDeleteOutline /></div>
-                                                        <div
-                                                            className="resize"
-                                                            style={{
-                                                                width: '15px',
-                                                                height: '15px',
-                                                                position: 'absolute',
-                                                                cursor: 'nw-resize',
-                                                                bottom: -5,
-                                                                right: -10,
-                                                                zIndex: 15,
-                                                                transform: 'rotate(45deg)',
-                                                                backgroundColor: 'white',
-                                                                borderRadius: '50%'
-                                                            }}
-                                                            onMouseDown={onResizeStart}
-                                                        ><FaRegArrowAltCircleRight /></div>
-                                                    </div>
+                                                        onMouseDown={onResizeStart}
+                                                    ><TiDeleteOutline /></div>
+                                                    <div
+                                                        className="resize"
+                                                        style={{
+                                                            width: '15px',
+                                                            height: '15px',
+                                                            position: 'absolute',
+                                                            cursor: 'nw-resize',
+                                                            bottom: -5,
+                                                            right: -10,
+                                                            zIndex: 15,
+                                                            transform: 'rotate(45deg)',
+                                                            backgroundColor: 'white',
+                                                            borderRadius: '50%'
+                                                        }}
+                                                        onMouseDown={onResizeStart}
+                                                    ><FaRegArrowAltCircleRight /></div>
                                                 </div>
-                                            </Draggable>
-                                        )}
-                                    </Page>
+                                            </div>
+                                        </Draggable>
+                                    )}
                                 </Document>
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 10, gap: 10 }}>
-                                <button onClick={() => setPageNumber((prevPage) => prevPage - 1)} disabled={pageNumber <= 1}>
-                                    Previous Page
-                                </button>
-                                <div>Page {pageNumber} of {numPages}</div>
-                                <button onClick={() => setPageNumber((prevPage) => prevPage + 1)} disabled={pageNumber >= numPages}>
-                                    Next Page
-                                </button>
                             </div>
                         </>
                     )
