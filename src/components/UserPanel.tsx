@@ -13,7 +13,6 @@ interface IProps {
 const UserPanel = ({ pdfFile }: IProps) => {
     const [fields, setFields] = useState<IFieldDetails[]>([]);
     const [signature, setSignature] = useState<File>();
-    const [pageNumber, setPageNumber] = useState<number>(0);
     const [numPages, setNumPages] = useState<number>(0);
     const [signatureDetails, setSignatureDetails] = useState<IFieldDetails[]>([]);
     const pdfCanvasRef = useRef<HTMLDivElement>(null);
@@ -29,8 +28,8 @@ const UserPanel = ({ pdfFile }: IProps) => {
                             position: absolute;
                             left: ${field?.posX}%;
                             top: ${field?.posY}%;
-                            width: ${field?.width}px;
-                            height: ${field?.height}px;
+                            width: ${field?.width}%;
+                            height: ${field?.height}%;
                             background-color: rgba(51, 204, 51, 0.2);
                             border: 2px dashed green;
                             cursor: grab;
@@ -45,31 +44,6 @@ const UserPanel = ({ pdfFile }: IProps) => {
             field?.viewerElement.insertAdjacentHTML('beforeend', htmlString);
         }
     }
-
-    // const drawSignatureField = (id: string, fieldName: string, posX: number, posY: number, height: number, width: number) => {
-    //     const viewerElement = pdfCanvasRef?.current?.querySelector('.page-container') as HTMLElement;
-    //     viewerElement.style.position = 'relative';
-    //     if (viewerElement) {
-    //         console.log('signatureBoxPosition:');
-
-    //         const sealedSignatureDiv = document.createElement('div');
-    //         sealedSignatureDiv.id = id;
-    //         sealedSignatureDiv.style.position = 'absolute';
-    //         sealedSignatureDiv.style.left = `${posX}px`;
-    //         sealedSignatureDiv.style.top = `${posY}px`;
-    //         sealedSignatureDiv.style.width = width + 'px';
-    //         sealedSignatureDiv.style.height = height + 'px';
-    //         sealedSignatureDiv.style.backgroundColor = 'rgba(51, 204, 51, 0.2)';
-    //         sealedSignatureDiv.style.border = '2px dashed green';
-    //         sealedSignatureDiv.style.color = 'black';
-    //         sealedSignatureDiv.style.display = 'flex';
-    //         sealedSignatureDiv.style.justifyContent = 'center';
-    //         sealedSignatureDiv.style.alignItems = 'center';
-    //         sealedSignatureDiv.textContent = fieldName;
-
-    //         viewerElement.appendChild(sealedSignatureDiv);
-    //     }
-    // }
 
     const removeSignatureField = (id: string) => {
         const element = document.getElementById(id);
@@ -86,23 +60,22 @@ const UserPanel = ({ pdfFile }: IProps) => {
         const scaleY = canvas.height / canvasRect.height;
         const adjustedX = field?.posX * scaleX;
         const adjustedY = field?.posY * scaleY;
+        const widthInPx = (field?.width / 100) * canvas.width;
+        const heightInPx = (field?.height / 100) * canvas.height;
         if (field?.fieldType == 'DATE') {
             const currentDate = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
-            const fontSize = field?.height * 0.6; // Adjust scale factor (0.6) if needed
+            const fontSize = heightInPx * 0.6;
             ctx.font = `${fontSize}px Arial`;
-            ctx.textBaseline = 'middle'; // Align text vertically to its middle
-
-            // Measure text width to center it horizontally
+            ctx.textBaseline = 'middle';
             const startX = adjustedX;
-            const centerY = adjustedY + (field?.height * scaleY) / 2;
-
+            const centerY = adjustedY + (heightInPx * scaleY) / 2;
             ctx.fillText(currentDate, startX, centerY);
             return;
         }
         const image: HTMLImageElement = new Image();
         image.src = URL.createObjectURL(signature as File);
         image.onload = () => {
-            ctx.drawImage(image, adjustedX, adjustedY, field?.width * scaleX, field?.height * scaleY);
+            ctx.drawImage(image, adjustedX, adjustedY, widthInPx * scaleX, heightInPx * scaleY);
         };
     }
 
@@ -113,7 +86,6 @@ const UserPanel = ({ pdfFile }: IProps) => {
             setFields(JSON.parse(storedFields));
         }
         setNumPages(pdf?.numPages);
-        setPageNumber(1);
     }
 
     const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,32 +138,39 @@ const UserPanel = ({ pdfFile }: IProps) => {
         const pdfDoc = await PDFDocument.load(pdfArrayBuffer);
         let signatureImage: PDFImage;
         if (signature.type === 'image/png') {
-            signatureImage = await pdfDoc.embedPng(signatureArrayBuffer); //
+            signatureImage = await pdfDoc.embedPng(signatureArrayBuffer);
         } else if (signature.type === 'image/jpeg') {
-            signatureImage = await pdfDoc.embedJpg(signatureArrayBuffer); //
+            signatureImage = await pdfDoc.embedJpg(signatureArrayBuffer);
         }
 
-        const baseFontSize = 12; // Base font size
-        const baseSignatureWidth = 100; // Base signature width for scaling
         const currentDate = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
         signatureDetails?.map((signature => {
             const page = pdfDoc.getPage(signature?.pageNumber);
+            console.log('page?.width: ', page?.getWidth());
+            console.log('page?.height: ', page.getHeight());
             if (!(pdfCanvasRef?.current)) return;
-            const viewport = pdfCanvasRef.current.getBoundingClientRect();
-            const pdfX = (Number(signature?.positionX) / viewport.width) * page.getWidth();
-            const pdfY = page.getHeight() - (Number(signature?.positionY) / viewport.height) * page.getHeight() - Number(signature?.height);
-            const textSize = (Number(signature?.width) / baseSignatureWidth) * baseFontSize;
+            const canvas = document.querySelectorAll('.react-pdf__Page__canvas')[signature?.pageNumber] as HTMLCanvasElement
+            const viewport = canvas?.getBoundingClientRect();
+            const pdfX = (Number(signature?.positionX) / viewport?.width) * page?.getWidth();
+            const pdfY = page.getHeight() - (Number(signature?.positionY) / viewport?.height) * page.getHeight()
+
+            const signatureWidth = (Number(signature?.width) / 100) * page?.getWidth();
+            const signatureHeight = (Number(signature?.height) / 100) * page?.getHeight();
+
+            const heightInPx = signatureHeight;
+            const textSize = heightInPx * 0.6;
+
             if (signature?.fieldType == 'SIGNATURE') {
                 page.drawImage(signatureImage, {
                     x: pdfX,
-                    y: pdfY,
-                    width: Number(signature?.width),
-                    height: Number(signature?.height),
+                    y: pdfY - signatureHeight,
+                    width: signatureWidth,
+                    height: signatureHeight,
                 });
             } else {
                 page.drawText(currentDate, {
                     x: pdfX,
-                    y: pdfY + textSize,
+                    y: pdfY - textSize,
                     size: textSize
                 });
             }
@@ -219,19 +198,6 @@ const UserPanel = ({ pdfFile }: IProps) => {
                 id: fields?.id,
             });
         });
-
-        // setTimeout(() => {
-        //     const addSignature = signatureDetails.filter(signature => signature?.pageNumber == pageNumber);
-        //     addSignature.map(signature => {
-        //         drawSignature(
-        //             signature?.positionX,
-        //             signature?.positionY,
-        //             signature?.height,
-        //             signature?.width,
-        //             signature?.fieldType,
-        //         );
-        //     })
-        // }, 50);
     }, [numPages]);
 
     return (
@@ -256,6 +222,7 @@ const UserPanel = ({ pdfFile }: IProps) => {
                             <Document
                                 file={pdfFile}
                                 onLoadSuccess={onDocumentLoadSuccess}
+                                // onClick={handleClick}
                                 onClick={handleSetSignature}
                             >
                                 {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => {
@@ -263,7 +230,7 @@ const UserPanel = ({ pdfFile }: IProps) => {
                                         <>
                                             <Page
                                                 key={page}
-                                                // scale={2}
+                                                scale={1}
                                                 width={1100}
                                                 className={'page-container page-number-' + page}
                                                 pageNumber={page}
@@ -276,15 +243,6 @@ const UserPanel = ({ pdfFile }: IProps) => {
                                     );
                                 })}
                             </Document>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 10, gap: 10 }}>
-                            <button onClick={() => setPageNumber((prevPage) => prevPage - 1)} disabled={pageNumber <= 1}>
-                                Previous Page
-                            </button>
-                            <div>Page {pageNumber} of {numPages}</div>
-                            <button onClick={() => setPageNumber((prevPage) => prevPage + 1)} disabled={pageNumber >= numPages}>
-                                Next Page
-                            </button>
                         </div>
                     </>
                 )}
