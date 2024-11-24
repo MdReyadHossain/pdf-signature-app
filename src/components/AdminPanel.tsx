@@ -22,7 +22,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const [pdfFile, setPdfFile] = useState<File | string>('https://cdn.filestackcontent.com/wcrjf9qPTCKXV3hMXDwK');
     const [numPages, setNumPages] = useState<number>(0);
     const [pageNumber, setPageNumber] = useState<number>(0);
-    const [pdfSize, setPdfSize] = useState<{ h: number, w: number }>({ h: 0, w: 0 });
+    const [fieldsContainerPos, setFieldsContainerPos] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
 
     const [fields, setFields] = useState<IFieldDetails[]>([]);
 
@@ -36,15 +36,16 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const pdfCanvasRef = useRef<HTMLDivElement>(null);
 
     const drawField = (field: IFieldData) => {
-        field.viewerElement.style.position = 'relative';
+        if (field?.viewerElement)
+            field.viewerElement.style.position = 'relative';
         if (field?.viewerElement) {
             const htmlString = `
                     <div 
                         id="${field?.id ?? ''}" 
                         style="
                             position: absolute;
-                            left: ${field?.posX}px;
-                            top: ${field?.posY}px;
+                            left: ${field?.posX}%;
+                            top: ${field?.posY}%;
                             width: ${field?.width}px;
                             height: ${field?.height}px;
                             background-color: rgba(51, 204, 51, 0.2);
@@ -440,7 +441,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     useEffect(() => {
         if (dragStatus == 'drop') {
             const viewerElement = pdfCanvasRef?.current?.querySelectorAll('.page-container')[indx] as HTMLElement;
-            const viewRect = viewerElement.getBoundingClientRect();
+            const viewRect = viewerElement?.getBoundingClientRect();
             const posX = signatureBoxPosition.posX - viewRect?.left;
             const posY = signatureBoxPosition.posY - viewRect?.top;
             const pageHeight = viewRect?.height;
@@ -452,8 +453,8 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                     id: fieldId,
                     fieldName: signatureBox.fieldName,
                     fieldType: signatureBox.fieldType,
-                    positionX: signatureBoxPosition.posX,
-                    positionY: signatureBoxPosition.posY,
+                    positionX: (posX / viewRect.width) * 100,
+                    positionY: (posY / viewRect.height) * 100,
                     width: signatureBoxSize.boxW,
                     height: signatureBoxSize.boxH,
                     pageNumber: indx
@@ -461,8 +462,8 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                 drawField({
                     id: fieldId,
                     fieldName: signatureBox.fieldName,
-                    posX: signatureBoxPosition.posX - viewRect?.left,
-                    posY: signatureBoxPosition.posY - viewRect?.top,
+                    posX: (posX / viewRect.width) * 100,
+                    posY: (posY / viewRect.height) * 100,
                     height: signatureBoxSize.boxH,
                     width: signatureBoxSize.boxW,
                     viewerElement: viewerElement
@@ -479,6 +480,12 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         fieldsRef.current = fields;
     }, [fields]);
 
+    useEffect(() => {
+        setTimeout(() => {
+            const rightPosition = pdfCanvasRef?.current?.getBoundingClientRect().width ?? 0;
+            setFieldsContainerPos({ x: rightPosition - 210, y: 0 });
+        }, 100);
+    }, [numPages]);
     // useEffect(() => {
     //     setTimeout(() => {
     //         const pdfCanvas = document?.querySelector('.react-pdf__Page__canvas') as HTMLCanvasElement;
@@ -513,23 +520,6 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         <div>
             <h3>Admin Panel</h3>
             <input type="file" onChange={handleFileUpload} />
-            <div style={{ position: 'fixed', zIndex: 50, cursor: "default" }}>
-                <Draggable
-                    handle=".handle"
-                    defaultPosition={{ x: 0, y: 0 }}
-                >
-                    <div style={{ display: 'inline-block', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0px 0px 10px #aaaaaa' }}>
-                        <div className="handle" style={{ color: 'black', cursor: '' }}>Drag</div>
-                        {fieldButtons.map((button: IFieldButton, index: number) => (
-                            <div key={index}>
-                                <button key={index} onMouseDown={() => handleField(button)} style={{ margin: 10 }}>
-                                    Add {button.fieldName}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </Draggable>
-            </div>
             <div className="document">
                 {
                     pdfFile && (
@@ -537,9 +527,9 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                             <div>
                                 {/* {fieldBox && (
                                     <button onClick={() => setFieldBox(false)} >
-                                        Canel Field
+                                    Canel Field
                                     </button>
-                                )} */}
+                                    )} */}
 
                                 <button onClick={onSubmit} style={{ margin: 10 }}>
                                     Save
@@ -554,6 +544,24 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                     display: 'inline-block',
                                 }}
                             >
+                                <div style={{ position: 'fixed', zIndex: 50, cursor: "default", display: fieldsContainerPos.x > 0 ? '' : 'none' }}>
+                                    <Draggable
+                                        handle=".handle"
+                                        position={fieldsContainerPos}
+                                        onDrag={(_, data) => setFieldsContainerPos(data)}
+                                    >
+                                        <div style={{ display: 'inline-block', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0px 0px 10px #aaaaaa' }}>
+                                            <div className="handle" style={{ color: 'black', cursor: '' }}>Drag</div>
+                                            {fieldButtons.map((button: IFieldButton, index: number) => (
+                                                <div key={index}>
+                                                    <button key={index} onMouseDown={() => handleField(button)} style={{ margin: 10 }}>
+                                                        Add {button.fieldName}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </Draggable>
+                                </div>
                                 <Document
                                     file={pdfFile}
                                     onLoadSuccess={onDocumentLoadSuccess}

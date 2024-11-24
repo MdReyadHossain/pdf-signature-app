@@ -41,9 +41,10 @@ export interface ISignaturePosition {
 export interface IFieldData {
     id?: string,
     fieldName?: string,
+    fieldType?: string,
     posX: number,
     posY: number,
     height: number,
     width: number,
-    viewerElement: HTMLElement
+    viewerElement: HTMLElement | HTMLCanvasElement,
 }
