@@ -7,9 +7,12 @@ export interface IFieldDetails {
     height: number;
     width: number;
     pageNumber: number;
+    textValue?: string,
+    required?: boolean
 }
 
 export interface IFieldButton {
+    icon?: JSX.Element;
     fieldName: string;
     fieldType: string;
     positionX: number;
@@ -42,6 +45,7 @@ export interface IFieldData {
     id?: string,
     fieldName?: string,
     fieldType?: string,
+    required?: boolean,
     posX: number,
     posY: number,
     height: number,

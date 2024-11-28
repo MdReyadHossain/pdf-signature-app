@@ -3,10 +3,12 @@ import ReactDOM from "react-dom";
 import Draggable, { DraggableEvent } from "react-draggable";
 import { FaRegArrowAltCircleRight } from "react-icons/fa";
 import { ImCross } from "react-icons/im";
+import { MdOutlineDragIndicator } from "react-icons/md";
 import { Document, Page } from "react-pdf";
 import { DocumentCallback } from "react-pdf/src/shared/types.js";
 import { useNavigate } from "react-router-dom";
 import { fieldButtons } from "../helper/docSignature";
+import { generateAdminField } from "../helper/htmlStrings";
 import { IFieldButton, IFieldData, IFieldDetails, ISignaturePosition, ISignatureSize } from "../helper/interface";
 import { generateUid, urlToFileName } from "../helper/utils";
 import '../pdf-worker.config';
@@ -26,78 +28,22 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const [signatureBox, setSignatureBox] = useState<{ fieldName: string, fieldType: string }>({ fieldName: '', fieldType: '' });
     const [signatureBoxPosition, setSignatureBoxPosition] = useState<ISignaturePosition>({ x: 0, y: -300, posX: 0, posY: 0 });
     const [signatureBoxSize, setSignatureBoxSize] = useState<ISignatureSize>({ boxH: 50, boxW: 100 });
-    const [indx, setIndx] = useState<number>(-1);
+    const [indx, setIndx] = useState<number>(0);
 
     const [dragStatus, setDragStatus] = useState<'start' | 'drop' | 'done'>('done');
     const [fieldBox, setFieldBox] = useState<boolean>(false);
     const pdfCanvasRef = useRef<HTMLDivElement>(null);
+    const fieldsRef = useRef<IFieldDetails[]>(fields);
 
     const drawField = (field: IFieldData) => {
+        console.log('field #', field)
         if (field?.viewerElement)
             field.viewerElement.style.position = 'relative';
         if (field?.viewerElement) {
-            const htmlString = `
-                    <div 
-                        id="${field?.id ?? ''}" 
-                        style="
-                            position: absolute;
-                            left: ${field?.posX}%;
-                            top: ${field?.posY}%;
-                            width: ${field?.width}%;
-                            height: ${field?.height}%;
-                            background-color: rgba(51, 204, 51, 0.2);
-                            border: 2px dashed green;
-                            cursor: grab;
-                            color: black;
-                            display: flex;
-                            justify-content: center;
-                            align-items: center;
-                        ">
-                        ${field?.fieldName ?? 'Field'}
-                        <div 
-                            class="delete-${field?.id}" 
-                            style="
-                                width: 15px;
-                                height: 15px;
-                                border-radius: 50%;
-                                border: 1px solid black;
-                                position: absolute;
-                                background-color: rgba(255, 0, 0);
-                                color: white;
-                                cursor: pointer;
-                                top: -10px;
-                                right: -10px;
-                                font-size: 10px;
-                                z-index: 15;
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                            "
-                        ></div>
-                        <div 
-                            class="resize-${field?.id}" 
-                            style="
-                                width: 15px;
-                                height: 15px;
-                                border-radius: 50%;
-                                position: absolute;
-                                background-color: white;
-                                cursor: nw-resize;
-                                bottom: -10px;
-                                right: -10px;
-                                z-index: 15;
-                                display: flex;
-                                justify-content: center;
-                                align-items: center;
-                                transform: rotate(45deg);
-                            "
-                        ></div>
-                    </div>
-                `;
-            field?.viewerElement.insertAdjacentHTML('beforeend', htmlString);
+            field?.viewerElement.insertAdjacentHTML('beforeend', generateAdminField(field));
             const deleteDiv = document?.querySelector(`.delete-${field?.id}`) as HTMLElement;
             const resizeDiv = document?.querySelector(`.resize-${field?.id}`) as HTMLElement;
-
+            const reqDiv = document?.querySelector(`#check-${field?.id}`) as HTMLInputElement;
             if (deleteDiv) {
                 ReactDOM.render(<ImCross />, deleteDiv);
                 deleteDiv.onclick = () => onDeleteField(field?.id as string);
@@ -105,6 +51,10 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
             if (resizeDiv) {
                 ReactDOM.render(<FaRegArrowAltCircleRight />, resizeDiv);
                 resizeDiv.onmousedown = (e) => onResizeStart(e, field?.id as string);
+            }
+            if (reqDiv) {
+                ReactDOM.render(<MdOutlineDragIndicator />, reqDiv);
+                reqDiv.onchange = () => onFieldRequest(field?.id as string, reqDiv?.checked);
             }
         }
     }
@@ -116,12 +66,17 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         }
     }
 
+    const onFieldRequest = (id: string, checked: boolean) => {
+        const currentFields = fieldsRef.current;
+        setFields(currentFields.map(field => field.id === id ? { ...field, required: checked } : field));
+    }
+
     const onDragStart = (event: MouseEvent | DraggableEvent) => {
         setFieldBox(true);
         setDragStatus('start');
         const pdfContainer: DOMRect = pdfCanvasRef?.current?.getBoundingClientRect() as DOMRect;
-        const dataX = (event as MouseEvent).clientX - pdfContainer.left;
-        const dataY = (event as MouseEvent).clientY - pdfContainer.bottom;
+        const dataX = (event as MouseEvent).clientX - pdfContainer?.left;
+        const dataY = (event as MouseEvent).clientY - pdfContainer?.bottom;
         setSignatureBoxPosition({
             posX: (event as MouseEvent).clientX,
             posY: (event as MouseEvent).clientY,
@@ -174,8 +129,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const onResizeStart = (event: globalThis.MouseEvent, id: string) => {
         event.stopPropagation();
 
-        console.log('document.getElementById(id) #', document.getElementById(id));
-        const fieldElement = document.getElementById(id) as HTMLElement
+        const fieldElement = document.getElementById(id) as HTMLElement;
         const viewerRect = fieldElement.getBoundingClientRect();
         x = event.clientX - viewerRect.left;
         y = event.clientY - viewerRect.top;
@@ -202,8 +156,8 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
             const viewRect = viewerElement?.getBoundingClientRect();
             const pageHeight = viewRect?.height;
             const pageWidth = viewRect?.width;
-            const newWidthPx = Math.min(300, Math.max(60, mx - x + w));
-            const newHeightPx = Math.min(200, Math.max(25, my - y + h));
+            const newWidthPx = Math.min(500, Math.max(60, mx - x + w));
+            const newHeightPx = Math.min(400, Math.max(25, my - y + h));
             const newWidth = (newWidthPx / pageWidth) * 100;
             const newHeight = (newHeightPx / pageHeight) * 100;
 
@@ -277,6 +231,10 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
             || signatureBoxSize.boxH <= 0 || signatureBoxSize.boxW <= 0);
     }
 
+    const handleClick = () => {
+        console.log('fields #', fields);
+    }
+
     useEffect(() => {
         if (dragStatus == 'drop') {
             const viewerElement = pdfCanvasRef?.current?.querySelectorAll('.page-container')[indx] as HTMLElement;
@@ -292,17 +250,18 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                     id: fieldId,
                     fieldName: signatureBox.fieldName,
                     fieldType: signatureBox.fieldType,
-                    positionX: (posX / viewRect.width) * 100,
-                    positionY: (posY / viewRect.height) * 100,
+                    positionX: (posX / viewRect?.width) * 100,
+                    positionY: (posY / viewRect?.height) * 100,
                     width: (signatureBoxSize.boxW / pageWidth) * 100,
                     height: (signatureBoxSize.boxH / pageHeight) * 100,
-                    pageNumber: indx
+                    pageNumber: indx,
+                    required: false
                 }]);
                 drawField({
                     id: fieldId,
                     fieldName: signatureBox.fieldName,
-                    posX: (posX / viewRect.width) * 100,
-                    posY: (posY / viewRect.height) * 100,
+                    posX: (posX / viewRect?.width) * 100,
+                    posY: (posY / viewRect?.height) * 100,
                     width: (signatureBoxSize.boxW / pageWidth) * 100,
                     height: (signatureBoxSize.boxH / pageHeight) * 100,
                     viewerElement: viewerElement
@@ -313,8 +272,6 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
         }
     }, [dragStatus])
 
-    const fieldsRef = useRef<IFieldDetails[]>(fields);
-
     useEffect(() => {
         fieldsRef.current = fields;
     }, [fields]);
@@ -322,7 +279,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     useEffect(() => {
         setTimeout(() => {
             const rightPosition = pdfCanvasRef?.current?.getBoundingClientRect().width ?? 0;
-            setFieldsContainerPos({ x: rightPosition - 210, y: 0 });
+            setFieldsContainerPos({ x: rightPosition - 200, y: 10 });
         }, 100);
     }, [numPages]);
     return (
@@ -346,28 +303,29 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                     display: 'inline-block',
                                 }}
                             >
-                                <div style={{ position: 'fixed', zIndex: 50, cursor: "default", display: fieldsContainerPos.x > 0 ? '' : 'none' }}>
-                                    <Draggable
-                                        handle=".handle"
-                                        position={fieldsContainerPos}
-                                        onDrag={(_, data) => setFieldsContainerPos(data)}
-                                    >
-                                        <div style={{ display: 'inline-block', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0px 0px 10px #aaaaaa' }}>
-                                            <div className="handle" style={{ color: 'black', cursor: '' }}>Drag</div>
+                                <Draggable
+                                    handle=".handle"
+                                    position={fieldsContainerPos}
+                                    onDrag={(_, data) => setFieldsContainerPos(data)}
+                                >
+                                    <div style={{ position: 'fixed', zIndex: 10, cursor: "default", display: fieldsContainerPos.x > 0 ? '' : 'none' }}>
+                                        <div style={{ display: 'inline-block', padding: '0px 10px', backgroundColor: 'white', borderRadius: '10px', boxShadow: '0px 0px 10px #aaaaaa' }}>
+                                            <div className="handle"><MdOutlineDragIndicator /></div>
                                             {fieldButtons.map((button: IFieldButton, index: number) => (
                                                 <div key={index}>
-                                                    <button key={index} onMouseDown={() => handleField(button)} style={{ margin: 10 }}>
-                                                        Add {button.fieldName}
+                                                    <button key={index} onMouseDown={() => handleField(button)} style={{ margin: '5px 0px', width: '100%' }}>
+                                                        {button.icon} {button.fieldName}
                                                     </button>
                                                 </div>
                                             ))}
                                         </div>
-                                    </Draggable>
-                                </div>
+                                    </div>
+                                </Draggable>
                                 <Document
                                     file={pdfFile}
                                     onLoadSuccess={onDocumentLoadSuccess}
                                     loading={<span>Loading...</span>}
+                                    onClick={handleClick}
                                 >
                                     {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => {
                                         return (
@@ -402,8 +360,9 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                                     position: 'absolute',
                                                     color: 'black',
                                                     transition: 'linear 0.5s ease-out',
-                                                    zIndex: 10,
-                                                    alignItems: ''
+                                                    zIndex: 20,
+                                                    alignItems: '',
+                                                    userSelect: 'none'
                                                 }}
                                             >
                                                 <div

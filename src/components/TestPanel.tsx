@@ -9,7 +9,7 @@ const TestPanel = () => {
     const [pageNumber, setPageNumber] = useState<number>(0);
     const [pdfSize, setPdfSize] = useState<{ h: number, w: number }>({ h: 0, w: 0 });
     const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
-    
+
     const onDocumentLoadSuccess = (pdf: DocumentCallback) => {
         setNumPages(pdf?.numPages);
         setPageNumber(1);
@@ -17,7 +17,7 @@ const TestPanel = () => {
 
     const onDrag = (_: DraggableEvent, data: DraggableData) => {
         console.log('DraggableData #', data);
-        setDragPosition({ x: data.x, y: data.y });
+        setDragPosition(data);
     }
 
     const onDragStop = (_: DraggableEvent, data: DraggableData) => {

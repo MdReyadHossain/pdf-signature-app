@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .test-field {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 10%;
+            height: 10%;
+            background-color: rgba(51, 204, 51, 0.2);
+            border: 2px dashed green;
+            cursor: grab;
+            color: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+        }
+
+        .delete-field {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            border: 1px solid black;
+            position: absolute;
+            background-color: rgba(255, 0, 0);
+            color: white;
+            cursor: pointer;
+            top: -10px;
+            right: -10px;
+            font-size: 10px;
+            z-index: 5;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .test-field:hover .delete-field {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .req-field {
+            width: 90%;
+            height: 80%;
+            border-radius: 10px;
+            font-size: 30px;
+            border: 1px solid black;
+            position: absolute;
+            background-color: rgba(255, 255, 255);
+            cursor: default;
+            top: -40px;
+            left: 0px;
+            font-size: 10px;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+
+        .test-field:hover .req-field {
+            opacity: 1;
+            visibility: visible;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="${field?.id ?? ''}" class="test-field">
+        Field <span style="color: red;">*</span>
+        <div class="req-field">
+            <input type="checkbox" id="required" autocomplete="off"> <label for="required" id="required">Required</label>
+        </div>
+        <div class="delete-field"></div>
+    </div>
+</body>
+
+</html>
