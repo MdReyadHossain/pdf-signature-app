@@ -245,7 +245,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
             const pageWidth = viewRect?.width;
 
             if (isSignatureBoxValid(posX, posY, pageWidth, pageHeight)) {
-                const fieldId: string = `field-${generateUid()}`;
+                const fieldId: string = generateUid();
                 setFields((prev: IFieldDetails[]) => [...prev, {
                     id: fieldId,
                     fieldName: signatureBox.fieldName,
@@ -255,7 +255,8 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                     width: (signatureBoxSize.boxW / pageWidth) * 100,
                     height: (signatureBoxSize.boxH / pageHeight) * 100,
                     pageNumber: indx,
-                    required: false
+                    required: false,
+                    hasApplied: false
                 }]);
                 drawField({
                     id: fieldId,
@@ -313,7 +314,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                             <div className="handle"><MdOutlineDragIndicator /></div>
                                             {fieldButtons.map((button: IFieldButton, index: number) => (
                                                 <div key={index}>
-                                                    <button key={index} onMouseDown={() => handleField(button)} style={{ margin: '5px 0px', width: '100%' }}>
+                                                    <button key={index} onMouseDown={() => handleField(button)} style={{ margin: '5px 0px', width: '100%', display: 'flex', alignItems: 'center', gap: 10 }}>
                                                         {button.icon} {button.fieldName}
                                                     </button>
                                                 </div>

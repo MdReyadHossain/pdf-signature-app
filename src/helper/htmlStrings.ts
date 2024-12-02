@@ -85,7 +85,7 @@ export const generateTextField = (field: IFieldData) => {
                 align-items: center;
                 user-select: none;
             ">
-            <input type="text" class="text" id="text-${field?.id}" placeholder="Text Field" autocomplete="off">
+            <input type="${field?.fieldType == 'TEXT' ? 'text' : 'number'}" class="text" id="text-${field?.id}" placeholder="${field?.fieldType == 'TEXT' ? 'Text Field' : 'Number Field'}" autocomplete="off">
             ${field?.required ? '<span style="color: red;">*</span>' : ''}
         </div>
     `;
@@ -111,8 +111,30 @@ export const generateClickField = (field: IFieldData) => {
                 align-items: center;
                 user-select: none;
             ">
-            ${field?.fieldName ?? 'Field'} 
-            ${field?.required ? '<span style="color: red;">*</span>' : ''}
+            <div id="click-${field?.id}">
+                ${field?.fieldName ?? 'Field'} 
+                ${field?.required ? '<span style="color: red;">*</span>' : ''}
+            </div>
+            <div 
+                class="undo-${field?.id} undo" 
+                style="
+                    width: 15px;
+                    height: 15px;
+                    border-radius: 50%;
+                    border: 1px solid black;
+                    position: absolute;
+                    background-color: white;
+                    color: black;
+                    cursor: pointer;
+                    top: -10px;
+                    right: -10px;
+                    font-size: 10px;
+                    z-index: 5;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                "
+            ></div>
         </div>
     `;
     return htmlString;

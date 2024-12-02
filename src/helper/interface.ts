@@ -7,8 +7,9 @@ export interface IFieldDetails {
     height: number;
     width: number;
     pageNumber: number;
-    textValue?: string,
-    required?: boolean
+    hasApplied: boolean;
+    textValue?: string;
+    required?: boolean;
 }
 
 export interface IFieldButton {
@@ -42,7 +43,7 @@ export interface ISignaturePosition {
 }
 
 export interface IFieldData {
-    id?: string,
+    id: string,
     fieldName?: string,
     fieldType?: string,
     required?: boolean,
