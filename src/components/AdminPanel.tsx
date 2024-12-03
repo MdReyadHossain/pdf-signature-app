@@ -1,14 +1,15 @@
 import { MouseEvent, useEffect, useRef, useState } from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from 'react-dom/client';
 import Draggable, { DraggableEvent } from "react-draggable";
 import { FaRegArrowAltCircleRight } from "react-icons/fa";
 import { ImCross } from "react-icons/im";
+import { IoMdCheckboxOutline } from "react-icons/io";
 import { MdOutlineDragIndicator } from "react-icons/md";
 import { Document, Page } from "react-pdf";
 import { DocumentCallback } from "react-pdf/src/shared/types.js";
 import { useNavigate } from "react-router-dom";
 import { fieldButtons } from "../helper/docSignature";
-import { generateAdminField } from "../helper/htmlStrings";
+import { generateAdminCheckField, generateAdminField } from "../helper/htmlStrings";
 import { IFieldButton, IFieldData, IFieldDetails, ISignaturePosition, ISignatureSize } from "../helper/interface";
 import { generateUid, urlToFileName } from "../helper/utils";
 import '../pdf-worker.config';
@@ -36,24 +37,38 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
     const fieldsRef = useRef<IFieldDetails[]>(fields);
 
     const drawField = (field: IFieldData) => {
-        console.log('field #', field)
         if (field?.viewerElement)
             field.viewerElement.style.position = 'relative';
         if (field?.viewerElement) {
-            field?.viewerElement.insertAdjacentHTML('beforeend', generateAdminField(field));
+            if (field?.fieldType == 'CHECKBOX') {
+                field?.viewerElement.insertAdjacentHTML('beforeend', generateAdminCheckField(field));
+                const checkBoxField = document?.getElementById(`${field?.id}`) as HTMLElement;
+                if (checkBoxField) {
+                    const checkboxElement = document.createElement("div");
+                    checkboxElement.id = field?.id;
+                    checkBoxField.appendChild(checkboxElement);
+                    const root = createRoot(checkboxElement);
+                    root.render(<IoMdCheckboxOutline id={`${field?.id}`} />);
+                }
+            } else {
+                field?.viewerElement.insertAdjacentHTML('beforeend', generateAdminField(field));
+            }
             const deleteDiv = document?.querySelector(`.delete-${field?.id}`) as HTMLElement;
             const resizeDiv = document?.querySelector(`.resize-${field?.id}`) as HTMLElement;
             const reqDiv = document?.querySelector(`#check-${field?.id}`) as HTMLInputElement;
             if (deleteDiv) {
-                ReactDOM.render(<ImCross />, deleteDiv);
+                const root = createRoot(deleteDiv);
+                root.render(<div><ImCross /></div>);
                 deleteDiv.onclick = () => onDeleteField(field?.id as string);
             }
             if (resizeDiv) {
-                ReactDOM.render(<FaRegArrowAltCircleRight />, resizeDiv);
+                const root = createRoot(resizeDiv);
+                root.render(<div><FaRegArrowAltCircleRight /></div>);
                 resizeDiv.onmousedown = (e) => onResizeStart(e, field?.id as string);
             }
             if (reqDiv) {
-                ReactDOM.render(<MdOutlineDragIndicator />, reqDiv);
+                const root = createRoot(reqDiv);
+                root.render(<div><MdOutlineDragIndicator /></div>);
                 reqDiv.onchange = () => onFieldRequest(field?.id as string, reqDiv?.checked);
             }
         }
@@ -68,6 +83,9 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
 
     const onFieldRequest = (id: string, checked: boolean) => {
         const currentFields = fieldsRef.current;
+        const requiredStar = document.querySelector(`.star-${id}`) as HTMLElement;
+        if (requiredStar)
+            requiredStar.style.display = checked ? 'inline' : 'none';
         setFields(currentFields.map(field => field.id === id ? { ...field, required: checked } : field));
     }
 
@@ -111,7 +129,6 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
 
     const onDragEnd = () => {
         setDragStatus('drop');
-        console.log('drop');
         document.removeEventListener('mousedown', onDragStart);
         document.removeEventListener('mousemove', onDrag);
         document.removeEventListener('mouseup', onDragEnd);
@@ -156,7 +173,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
             const viewRect = viewerElement?.getBoundingClientRect();
             const pageHeight = viewRect?.height;
             const pageWidth = viewRect?.width;
-            const newWidthPx = Math.min(500, Math.max(60, mx - x + w));
+            const newWidthPx = Math.min(500, Math.max(25, mx - x + w));
             const newHeightPx = Math.min(400, Math.max(25, my - y + h));
             const newWidth = (newWidthPx / pageWidth) * 100;
             const newHeight = (newHeightPx / pageHeight) * 100;
@@ -197,13 +214,13 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
 
     const handleMoveFieldBox = (event: MouseEvent) => {
         const divId = (event.target as HTMLElement)?.id;
-        const field = fields.find((field) => field.id === divId);
+        const field = fields.find((field) => field.id == divId);
         if (field) {
             const viewerElement = pdfCanvasRef?.current?.querySelectorAll('.page-container')[field?.pageNumber] as HTMLElement;
             const viewRect = viewerElement?.getBoundingClientRect();
             const pageHeight = viewRect?.height;
             const pageWidth = viewRect?.width;
-            removeField(divId);
+            removeField(divId ?? '');
             setFields(fields?.filter(field => field?.id !== divId));
             handleField({
                 fieldName: field?.fieldName ?? '',
@@ -261,6 +278,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                 drawField({
                     id: fieldId,
                     fieldName: signatureBox.fieldName,
+                    fieldType: signatureBox.fieldType,
                     posX: (posX / viewRect?.width) * 100,
                     posY: (posY / viewRect?.height) * 100,
                     width: (signatureBoxSize.boxW / pageWidth) * 100,
@@ -271,7 +289,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
             setDragStatus('done');
             setFieldBox(false);
         }
-    }, [dragStatus])
+    }, [dragStatus]);
 
     useEffect(() => {
         fieldsRef.current = fields;
@@ -376,7 +394,7 @@ const AdminPanel = ({ handleSendToUser }: IProps) => {
                                                         alignItems: 'center',
                                                     }}
                                                 >
-                                                    {signatureBox?.fieldName}
+                                                    {signatureBox?.fieldType == 'CHECKBOX' ? <IoMdCheckboxOutline /> : signatureBox?.fieldName}
                                                 </div>
                                             </div>
                                         </Draggable>

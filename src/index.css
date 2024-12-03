@@ -105,6 +105,7 @@ button:hover {
 
 .req-field {
   width: 90%;
+  min-width: 90px;
   height: 30px;
   padding-left: 10px;
   border-radius: 10px;

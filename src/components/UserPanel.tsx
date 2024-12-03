@@ -1,7 +1,9 @@
-import { PDFDocument, PDFImage } from 'pdf-lib';
+import { ModalWithHeader } from 'convertupleads-theme';
+import { PDFDocument, PDFImage, rgb } from 'pdf-lib';
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { FaUndo } from 'react-icons/fa';
+import { ImCheckboxChecked, ImCheckboxUnchecked } from 'react-icons/im';
 import { IoMdWarning } from 'react-icons/io';
 import { Document, Page } from "react-pdf";
 import { DocumentCallback } from 'react-pdf/src/shared/types.js';
@@ -9,12 +11,14 @@ import { generateClickField, generateTextField } from '../helper/htmlStrings';
 import { IFieldData, IFieldDetails } from '../helper/interface';
 import { urlToFileName } from '../helper/utils';
 import '../pdf-worker.config';
+import SignatureUploader from './SignatureUploader';
 
 interface IProps {
     pdfFile: File;
 }
 
 const UserPanel = ({ pdfFile }: IProps) => {
+    const [signatureModal, setSignatureModal] = useState<boolean>(false);
     const [fields, setFields] = useState<IFieldDetails[]>([]);
     const [signature, setSignature] = useState<File>();
     const [numPages, setNumPages] = useState<number>(0);
@@ -26,14 +30,16 @@ const UserPanel = ({ pdfFile }: IProps) => {
         if (field?.viewerElement)
             field.viewerElement.style.position = 'relative';
         if (field?.viewerElement) {
-            if (field?.fieldType == 'TEXT' || field?.fieldType == 'NUMBER') {
+            if (field?.fieldType == 'TEXT' || field?.fieldType == 'NUMBER' || field?.fieldType == 'CHECKBOX') {
                 field?.viewerElement.insertAdjacentHTML('beforeend', generateTextField(field));
                 const inputElement = document.getElementById(`text-${field?.id}`) as HTMLInputElement;
                 if (inputElement) {
                     inputElement.onchange = (e: any) => onChangeText(e, field?.id ?? '');
                 }
             }
-            else {
+            else if (field?.fieldType == 'DROPDOWN') {
+
+            } else {
                 field?.viewerElement.insertAdjacentHTML('beforeend', generateClickField(field));
                 const undoSign = document.querySelector(`.undo-${field?.id}`) as HTMLInputElement;
                 if (undoSign) {
@@ -43,13 +49,6 @@ const UserPanel = ({ pdfFile }: IProps) => {
             }
         }
     }
-
-    // const removeSignatureField = (id: string) => {
-    //     const element = document.getElementById(id);
-    //     if (element) {
-    //         element.remove();
-    //     }
-    // }
 
     const onUndoSignField = (id: string) => {
         const currentFields = fieldsRef?.current;
@@ -67,7 +66,6 @@ const UserPanel = ({ pdfFile }: IProps) => {
     }
 
     const onFillupField = (field: IFieldData) => {
-        const currentFields = fieldsRef?.current;
         const element = document.getElementById(`click-${field?.id}`) as HTMLElement;
         console.log('element #', element);
         switch (field?.fieldType) {
@@ -76,13 +74,7 @@ const UserPanel = ({ pdfFile }: IProps) => {
                 break;
             case 'DATE':
                 const currentDate = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
-                element.innerHTML = `<p>${currentDate}</p>`
-                console.log('currentDate #', currentDate);
-                console.log('currentFields #', currentFields);
-                setFields(currentFields?.map(currentField => currentField.id == field?.id ? {
-                    ...currentField,
-                    textValue: currentDate
-                } : currentField));
+                element.innerHTML = `<p>${currentDate}</p>`;
                 break;
             default:
                 break;
@@ -92,10 +84,8 @@ const UserPanel = ({ pdfFile }: IProps) => {
     const onChangeText = (e: ChangeEvent<HTMLInputElement>, id: string) => {
         const currentFields = fieldsRef?.current;
         const value = e.target.value;
-        const field = currentFields?.find(field => field.id == id)
-        const canvas = document.querySelectorAll('.react-pdf__Page__canvas')[(field as IFieldDetails)?.pageNumber] as HTMLCanvasElement;
-        const canvasHeight = canvas?.style.height;
-        const canvasWidth = canvas?.style.width;
+        const checked = e.target.checked;
+        console.log('checked #', checked);
         if (value == '') {
             setFields(currentFields?.map(field => field.id === id ? {
                 ...field, textValue: value, hasApplied: false
@@ -104,9 +94,9 @@ const UserPanel = ({ pdfFile }: IProps) => {
         setFields(currentFields?.map(field => field.id === id ? {
             ...field,
             textValue: value,
-            hasApplied: true,
-            positionX: (field?.positionX / 100) * parseInt(canvasWidth),
-            positionY: (field?.positionY / 100) * parseInt(canvasHeight),
+            hasApplied: field?.fieldType == 'CHECKBOX' ? checked : true,
+            positionX: field?.positionX,
+            positionY: field?.positionY,
         } : field));
     }
 
@@ -119,10 +109,9 @@ const UserPanel = ({ pdfFile }: IProps) => {
         setNumPages(pdf?.numPages);
     }
 
-    const handleSignatureUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const files = event.target.files;
-        if (!files || files.length === 0) return;
-        setSignature(files[0]);
+    const handleSignatureUpload = (file: File) => {
+        setSignature(file);
+        setSignatureModal(false);
     }
 
     const handleSetSignature = (event: MouseEvent) => {
@@ -134,24 +123,27 @@ const UserPanel = ({ pdfFile }: IProps) => {
             if (field?.fieldType == 'TEXT' || field?.fieldType == 'NUMBER') return;
             if (field?.fieldType == 'SIGNATURE' && !signature) {
                 setError('Signature did not uploaded yet');
+                setSignatureModal(true);
                 return;
             }
+            const currentDate = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
             const canvas = document.querySelectorAll('.react-pdf__Page__canvas')[field?.pageNumber] as HTMLCanvasElement;
             const canvasHeight = canvas?.style.height;
             const canvasWidth = canvas?.style.width;
             onFillupField({
                 id: field?.id,
                 fieldType: field?.fieldType,
-                posX: (field?.positionX / 100) * parseInt(canvasWidth),
-                posY: (field?.positionY / 100) * parseInt(canvasHeight),
+                posX: field?.positionX,
+                posY: field?.positionY,
                 height: (field?.height / 100) * parseInt(canvasHeight),
                 width: (field?.width / 100) * parseInt(canvasWidth),
                 viewerElement: canvas,
             });
             setFields(currentFields?.map(currentField => currentField.id === field?.id ? {
                 ...currentField,
-                positionX: (field?.positionX / 100) * parseInt(canvasWidth),
-                positionY: (field?.positionY / 100) * parseInt(canvasHeight),
+                positionX: field?.positionX,
+                positionY: field?.positionY,
+                textValue: field?.fieldType == 'DATE' ? currentDate : undefined,
                 hasApplied: true
             } : currentField));
         }
@@ -185,16 +177,20 @@ const UserPanel = ({ pdfFile }: IProps) => {
 
             if (!(pdfCanvasRef?.current)) return;
             const canvas = document.querySelectorAll('.react-pdf__Page__canvas')[field?.pageNumber] as HTMLCanvasElement
+            const canvasHeight = canvas?.style.height;
+            const canvasWidth = canvas?.style.width;
             const viewport = canvas?.getBoundingClientRect();
-            const fieldX = (Number(field?.positionX) / viewport?.width) * page?.getWidth();
-            const fieldY = page.getHeight() - (Number(field?.positionY) / viewport?.height) * page.getHeight();
+            let fieldX = (field?.positionX / 100) * parseInt(canvasWidth);
+            let fieldY = (field?.positionY / 100) * parseInt(canvasHeight);
+            fieldX = (Number(fieldX) / viewport?.width) * page?.getWidth();
+            fieldY = page.getHeight() - (Number(fieldY) / viewport?.height) * page.getHeight();
 
             const signatureWidth = (Number(field?.width) / 100) * page?.getWidth();
             const signatureHeight = (Number(field?.height) / 100) * page?.getHeight();
 
             const heightInPx = signatureHeight;
             const textSize = heightInPx * 0.6;
-
+            if (field?.fieldType == 'SIGNATURE' && (!signature || !field?.hasApplied)) continue;
             if (signature && field?.fieldType == 'SIGNATURE') {
                 const signatureArrayBuffer = await signature.arrayBuffer();
                 let signatureImage: PDFImage;
@@ -214,7 +210,17 @@ const UserPanel = ({ pdfFile }: IProps) => {
                 });
             } else if (!signature && field?.fieldType == 'SIGNATURE' && field?.required) {
                 setError('Signature did not uploaded yet');
+                setSignatureModal(true);
                 return;
+            } else if (field?.fieldType == 'CHECKBOX') {
+                const checkSvg = ImCheckboxChecked({})?.props?.children[0]?.props?.d;
+                const uncheckSvg = ImCheckboxUnchecked({})?.props?.children[0]?.props?.d;
+                page.drawSvgPath(field?.hasApplied ? checkSvg : uncheckSvg, {
+                    x: fieldX,
+                    y: fieldY - 3,
+                    scale: 0.7,
+                    color: rgb(0, 0, 0),
+                });
             } else {
                 page.drawText(field?.textValue ?? '', {
                     x: fieldX,
@@ -234,6 +240,10 @@ const UserPanel = ({ pdfFile }: IProps) => {
     }
 
     useEffect(() => {
+
+        // const canvas = document.querySelectorAll('.react-pdf__Page__canvas')[field?.pageNumber] as HTMLCanvasElement;
+        // const canvasHeight = canvas?.style.height;
+        // const canvasWidth = canvas?.style.width;
         fields.map(field => {
             const viewerElement = pdfCanvasRef?.current?.querySelectorAll('.page-container')[field?.pageNumber] as HTMLElement;
             drawField({
@@ -263,59 +273,65 @@ const UserPanel = ({ pdfFile }: IProps) => {
         }
     }, [error]);
     return (
-        <div>
-            <h3 onClick={() => console.log('signatureDetails #', fields)}>User Panel</h3>
-            <input type="file" accept=".png, .jpeg, .jpg" onChange={handleSignatureUpload} />
-            <div className="document">
-                {pdfFile && (
-                    <>
-                        <div>
-                            <button onClick={onSignatureDone}>Done</button>
-                        </div>
-                        {error && (
-                            <div className="alert">
-                                <span className="closebtn" onClick={() => setError(null)}>&times;</span>
-                                <strong><IoMdWarning /></strong> {error}
+        <>
+            <div>
+                <h3 onClick={() => console.log('signatureDetails #', fields)}>User Panel</h3>
+                <button onClick={() => setSignatureModal(true)}>Upload Signatrue</button>
+                <div className="document">
+                    {pdfFile && (
+                        <>
+                            <div>
+                                <button onClick={onSignatureDone}>Done</button>
                             </div>
-                        )}
-                        <div
-                            className="pdf-container"
-                            ref={pdfCanvasRef}
-                            style={{
-                                width: 'auto',
-                                display: 'inline-block',
-                                margin: 10
-                            }}
-                        >
-                            <Document
-                                file={pdfFile}
-                                onLoadSuccess={onDocumentLoadSuccess}
-                                // onClick={handleClick}
-                                onClick={handleSetSignature}
+                            {error && (
+                                <div className="alert">
+                                    <span className="closebtn" onClick={() => setError(null)}>&times;</span>
+                                    <strong><IoMdWarning /></strong> {error}
+                                </div>
+                            )}
+                            <div
+                                className="pdf-container"
+                                ref={pdfCanvasRef}
+                                style={{
+                                    width: 'auto',
+                                    display: 'inline-block',
+                                    margin: 10
+                                }}
                             >
-                                {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => {
-                                    return (
-                                        <>
-                                            <Page
-                                                key={page}
-                                                scale={1}
-                                                width={1100}
-                                                className={'page-container page-number-' + page}
-                                                pageNumber={page}
-                                                renderTextLayer={false}
-                                                renderAnnotationLayer={false}
-                                            >
-                                            </Page>
-                                            <div style={{ height: 10 }}></div>
-                                        </>
-                                    );
-                                })}
-                            </Document>
-                        </div>
-                    </>
-                )}
+                                <Document
+                                    file={pdfFile}
+                                    onLoadSuccess={onDocumentLoadSuccess}
+                                    // onClick={handleClick}
+                                    onClick={handleSetSignature}
+                                >
+                                    {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => {
+                                        return (
+                                            <>
+                                                <Page
+                                                    key={page}
+                                                    scale={1}
+                                                    width={1100}
+                                                    className={'page-container page-number-' + page}
+                                                    pageNumber={page}
+                                                    renderTextLayer={false}
+                                                    renderAnnotationLayer={false}
+                                                >
+                                                </Page>
+                                                <div style={{ height: 10 }}></div>
+                                            </>
+                                        );
+                                    })}
+                                </Document>
+                            </div>
+                        </>
+                    )}
+                </div>
+
             </div>
-        </div>
+            <ModalWithHeader title='Configure Signature' open={signatureModal} onClose={() => setSignatureModal(false)}>
+                <SignatureUploader onUpload={handleSignatureUpload} />
+            </ModalWithHeader>
+        </>
     )
 }
 

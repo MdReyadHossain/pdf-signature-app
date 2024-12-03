@@ -1,8 +1,9 @@
 import { AiOutlineSignature } from "react-icons/ai";
-import { IFieldButton } from "./interface";
 import { BsCalendar2Date } from "react-icons/bs";
 import { CgFormatText } from "react-icons/cg";
+import { FaCheckCircle } from "react-icons/fa";
 import { TbNumber123 } from "react-icons/tb";
+import { IFieldButton } from "./interface";
 
 export const fieldButtons: IFieldButton[] = [
     {
@@ -10,7 +11,7 @@ export const fieldButtons: IFieldButton[] = [
         fieldName: "Signature Field",
         fieldType: "SIGNATURE",
         positionX: 0,
-        positionY: -300,
+        positionY: 0,
         height: 100,
         width: 150,
     },
@@ -19,7 +20,7 @@ export const fieldButtons: IFieldButton[] = [
         fieldName: "Date Field",
         fieldType: "DATE",
         positionX: 0,
-        positionY: -300,
+        positionY: 0,
         height: 50,
         width: 200,
     },
@@ -28,7 +29,7 @@ export const fieldButtons: IFieldButton[] = [
         fieldName: "Number Field",
         fieldType: "NUMBER",
         positionX: 0,
-        positionY: -300,
+        positionY: 0,
         height: 50,
         width: 200,
     },
@@ -37,25 +38,25 @@ export const fieldButtons: IFieldButton[] = [
         fieldName: "Text Field",
         fieldType: "TEXT",
         positionX: 0,
-        positionY: -300,
+        positionY: 0,
         height: 50,
         width: 300,
     },
+    {
+        icon: <FaCheckCircle />,
+        fieldName: "Check Field",
+        fieldType: "CHECKBOX",
+        positionX: 0,
+        positionY: 0,
+        height: 30,
+        width: 30,
+    },
     // {
-    //     icon: <CgFormatText />,
-    //     fieldName: "",
-    //     fieldType: "CHECKBOX",
-    //     positionX: 0,
-    //     positionY: -300,
-    //     height: 50,
-    //     width: 50,
-    // },
-    // {
-    //     icon: <CgFormatText />,
+    //     icon: <RxDropdownMenu />,
     //     fieldName: "Dropdown Field",
     //     fieldType: "DROPDOWN",
     //     positionX: 0,
-    //     positionY: -300,
+    //     positionY: 0,
     //     height: 50,
     //     width: 200,
     // }

@@ -14,7 +14,7 @@ export interface IFieldDetails {
 
 export interface IFieldButton {
     icon?: JSX.Element;
-    fieldName: string;
+    fieldName: string | any;
     fieldType: string;
     positionX: number;
     positionY: number;
